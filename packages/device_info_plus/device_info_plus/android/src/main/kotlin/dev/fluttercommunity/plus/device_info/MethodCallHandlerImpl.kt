@@ -1,5 +1,6 @@
 package dev.fluttercommunity.plus.device_info
 
+import android.app.ActivityManager
 import android.content.pm.FeatureInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -17,7 +18,7 @@ import kotlin.collections.HashMap
  */
 internal class MethodCallHandlerImpl(
     private val packageManager: PackageManager,
-    private val windowManager: WindowManager,
+    private val activityManager: ActivityManager,
 ) : MethodCallHandler {
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -63,22 +64,7 @@ internal class MethodCallHandlerImpl(
             version["release"] = Build.VERSION.RELEASE
             version["sdkInt"] = Build.VERSION.SDK_INT
             build["version"] = version
-
-            val display: Display = windowManager.defaultDisplay
-            val metrics = DisplayMetrics()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-                display.getRealMetrics(metrics)
-            } else {
-                display.getMetrics(metrics)
-            }
-
-            val displayResult: MutableMap<String, Any> = HashMap()
-            displayResult["widthPx"] = metrics.widthPixels.toDouble()
-            displayResult["heightPx"] = metrics.heightPixels.toDouble()
-            displayResult["xDpi"] = metrics.xdpi
-            displayResult["yDpi"] = metrics.ydpi
-            build["displayMetrics"] = displayResult
-
+            build["isLowRamDevice"] = activityManager.isLowRamDevice
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 build["serialNumber"] = try {
                     Build.getSerial()
@@ -86,6 +72,7 @@ internal class MethodCallHandlerImpl(
                     Build.UNKNOWN
                 }
             } else {
+                @Suppress("DEPRECATION")
                 build["serialNumber"] = Build.SERIAL
             }
 

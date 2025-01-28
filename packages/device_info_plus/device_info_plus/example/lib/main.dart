@@ -21,7 +21,7 @@ void main() {
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -101,15 +101,8 @@ class _MyAppState extends State<MyApp> {
       'type': build.type,
       'isPhysicalDevice': build.isPhysicalDevice,
       'systemFeatures': build.systemFeatures,
-      'displaySizeInches':
-          ((build.displayMetrics.sizeInches * 10).roundToDouble() / 10),
-      'displayWidthPixels': build.displayMetrics.widthPx,
-      'displayWidthInches': build.displayMetrics.widthInches,
-      'displayHeightPixels': build.displayMetrics.heightPx,
-      'displayHeightInches': build.displayMetrics.heightInches,
-      'displayXDpi': build.displayMetrics.xDpi,
-      'displayYDpi': build.displayMetrics.yDpi,
       'serialNumber': build.serialNumber,
+      'isLowRamDevice': build.isLowRamDevice,
     };
   }
 
@@ -119,9 +112,11 @@ class _MyAppState extends State<MyApp> {
       'systemName': data.systemName,
       'systemVersion': data.systemVersion,
       'model': data.model,
+      'modelName': data.modelName,
       'localizedModel': data.localizedModel,
       'identifierForVendor': data.identifierForVendor,
       'isPhysicalDevice': data.isPhysicalDevice,
+      'isiOSAppOnMac': data.isiOSAppOnMac,
       'utsname.sysname:': data.utsname.sysname,
       'utsname.nodename:': data.utsname.nodename,
       'utsname.release:': data.utsname.release,
@@ -148,7 +143,7 @@ class _MyAppState extends State<MyApp> {
 
   Map<String, dynamic> _readWebBrowserInfo(WebBrowserInfo data) {
     return <String, dynamic>{
-      'browserName': describeEnum(data.browserName),
+      'browserName': data.browserName.name,
       'appCodeName': data.appCodeName,
       'appName': data.appName,
       'appVersion': data.appVersion,
@@ -172,6 +167,7 @@ class _MyAppState extends State<MyApp> {
       'hostName': data.hostName,
       'arch': data.arch,
       'model': data.model,
+      'modelName': data.modelName,
       'kernelVersion': data.kernelVersion,
       'majorVersion': data.majorVersion,
       'minorVersion': data.minorVersion,

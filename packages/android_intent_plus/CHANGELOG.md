@@ -1,3 +1,40 @@
+## 5.2.2
+
+ - **FIX**(android_intent_plus): set correct environment versions ([#3421](https://github.com/fluttercommunity/plus_plugins/issues/3421)). ([dc3ba17a](https://github.com/fluttercommunity/plus_plugins/commit/dc3ba17a3948329de546c373aababb2401e556bb))
+
+## 5.2.1
+
+ - **REFACTOR**(all): Use range of flutter_lints for broader compatibility ([#3371](https://github.com/fluttercommunity/plus_plugins/issues/3371)). ([8a303add](https://github.com/fluttercommunity/plus_plugins/commit/8a303add3dee1acb8bac5838246490ed8a0fe408))
+
+## 5.2.0
+
+ - **FEAT**(android_intent_plus): add getResolvedActivity method ([#3313](https://github.com/fluttercommunity/plus_plugins/issues/3313)). ([8ad1c6d9](https://github.com/fluttercommunity/plus_plugins/commit/8ad1c6d9e061a59383f82f9b4a7703ef03e4c04c))
+
+## 5.1.0
+
+ - **FIX**(android_intent_plus): remove package name from AndroidManifest ([#3033](https://github.com/fluttercommunity/plus_plugins/issues/3033)). ([af2f4afa](https://github.com/fluttercommunity/plus_plugins/commit/af2f4afaa419cdd9fb32632ea3ebe9a4e6df0513))
+ - **FEAT**(android_intent_plus): support for intent as URI ([#2970](https://github.com/fluttercommunity/plus_plugins/issues/2970)). ([e4530870](https://github.com/fluttercommunity/plus_plugins/commit/e4530870dd2412e04776dcecc0fbed2bb3842187))
+ - **REFACTOR**(all): Remove website files, configs, mentions ([#3018](https://github.com/fluttercommunity/plus_plugins/issues/3018)). ([ecc57146](https://github.com/fluttercommunity/plus_plugins/commit/ecc57146aa8c6b1c9c332169d3cc2205bc4a700f))
+ - **FIX**(all): changed homepage url in pubspec.yaml ([#3099](https://github.com/fluttercommunity/plus_plugins/issues/3099)). ([66613656](https://github.com/fluttercommunity/plus_plugins/commit/66613656a85c176ba2ad337e4d4943d1f4171129))
+
+## 5.0.2
+
+ - **REFACTOR**(android_intent_plus): Migrate Android example to use the new plugins declaration ([#2773](https://github.com/fluttercommunity/plus_plugins/issues/2773)). ([7c2de04d](https://github.com/fluttercommunity/plus_plugins/commit/7c2de04deffa1dc788d93c12e5cee1fd98821514))
+
+## 5.0.1
+
+Plugin now requires the following:
+- compileSDK 34
+- Java 17
+- Gradle 8.4
+
+- **BREAKING** **BUILD**(android_intent_plus): Target Java 17 ([#2724](https://github.com/fluttercommunity/plus_plugins/issues/2724)). ([c66a67d](https://github.com/fluttercommunity/plus_plugins/commit/c66a67da396d088a2e02d4e6b69e0b8802189f9a))
+- **BREAKING** **BUILD**(android_intent_plus): Update to target and compile SDK 34 ([#2711](https://github.com/fluttercommunity/plus_plugins/pull/2711)). ([fd48920](https://github.com/fluttercommunity/plus_plugins/commit/fd489200a714594aad4e2eac5f0e56f43ebd751a))
+
+## 5.0.0
+
+> Note: This release was retracted due to ([#2251](https://github.com/fluttercommunity/plus_plugins/issues/2251)).
+
 ## 4.0.3
 
  - **FIX**(android_intent_plus): Fix annotation dependency declaration ([#2237](https://github.com/fluttercommunity/plus_plugins/issues/2237)). ([795a3dd8](https://github.com/fluttercommunity/plus_plugins/commit/795a3dd81d8c718344936d65226d051f5fe4a125))

@@ -24,76 +24,11 @@ class MethodChannelShare extends SharePlatform {
       MethodChannel('dev.fluttercommunity.plus/share');
 
   @override
-  Future<void> shareUri(Uri uri) {
-    final params = <String, dynamic>{'uri': uri.toString()};
-    return channel.invokeMethod<void>('shareUri', params);
-  }
-
-  /// Summons the platform's share sheet to share text.
-  @override
-  Future<void> share(
-    String text, {
-    String? subject,
-    Rect? sharePositionOrigin,
-  }) {
-    assert(text.isNotEmpty);
-    final params = <String, dynamic>{
-      'text': text,
-      'subject': subject,
-    };
-
-    if (sharePositionOrigin != null) {
-      params['originX'] = sharePositionOrigin.left;
-      params['originY'] = sharePositionOrigin.top;
-      params['originWidth'] = sharePositionOrigin.width;
-      params['originHeight'] = sharePositionOrigin.height;
-    }
-
-    return channel.invokeMethod<void>('share', params);
-  }
-
-  /// Summons the platform's share sheet to share multiple files.
-  @override
-  Future<void> shareFiles(
-    List<String> paths, {
-    List<String>? mimeTypes,
-    String? subject,
-    String? text,
-    Rect? sharePositionOrigin,
-  }) {
-    assert(paths.isNotEmpty);
-    assert(paths.every((element) => element.isNotEmpty));
-    final params = <String, dynamic>{
-      'paths': paths,
-      'mimeTypes': mimeTypes ??
-          paths.map((String path) => _mimeTypeForPath(path)).toList(),
-    };
-
-    if (subject != null) params['subject'] = subject;
-    if (text != null) params['text'] = text;
-
-    if (sharePositionOrigin != null) {
-      params['originX'] = sharePositionOrigin.left;
-      params['originY'] = sharePositionOrigin.top;
-      params['originWidth'] = sharePositionOrigin.width;
-      params['originHeight'] = sharePositionOrigin.height;
-    }
-
-    return channel.invokeMethod('shareFiles', params);
-  }
-
-  /// Summons the platform's share sheet to share text and returns the result.
-  @override
-  Future<ShareResult> shareWithResult(
-    String text, {
-    String? subject,
+  Future<ShareResult> shareUri(
+    Uri uri, {
     Rect? sharePositionOrigin,
   }) async {
-    assert(text.isNotEmpty);
-    final params = <String, dynamic>{
-      'text': text,
-      'subject': subject,
-    };
+    final params = <String, dynamic>{'uri': uri.toString()};
 
     if (sharePositionOrigin != null) {
       params['originX'] = sharePositionOrigin.left;
@@ -102,32 +37,24 @@ class MethodChannelShare extends SharePlatform {
       params['originHeight'] = sharePositionOrigin.height;
     }
 
-    final result =
-        await channel.invokeMethod<String>('shareWithResult', params) ??
-            'dev.fluttercommunity.plus/share/unavailable';
+    final result = await channel.invokeMethod<String>('shareUri', params) ??
+        'dev.fluttercommunity.plus/share/unavailable';
 
     return ShareResult(result, _statusFromResult(result));
   }
 
-  /// Summons the platform's share sheet to share multiple files and returns the result.
+  /// Summons the platform's share sheet to share text.
   @override
-  Future<ShareResult> shareFilesWithResult(
-    List<String> paths, {
-    List<String>? mimeTypes,
+  Future<ShareResult> share(
+    String text, {
     String? subject,
-    String? text,
     Rect? sharePositionOrigin,
   }) async {
-    assert(paths.isNotEmpty);
-    assert(paths.every((element) => element.isNotEmpty));
+    assert(text.isNotEmpty);
     final params = <String, dynamic>{
-      'paths': paths,
-      'mimeTypes': mimeTypes ??
-          paths.map((String path) => _mimeTypeForPath(path)).toList(),
+      'text': text,
+      'subject': subject,
     };
-
-    if (subject != null) params['subject'] = subject;
-    if (text != null) params['text'] = text;
 
     if (sharePositionOrigin != null) {
       params['originX'] = sharePositionOrigin.left;
@@ -136,9 +63,8 @@ class MethodChannelShare extends SharePlatform {
       params['originHeight'] = sharePositionOrigin.height;
     }
 
-    final result =
-        await channel.invokeMethod<String>('shareFilesWithResult', params) ??
-            'dev.fluttercommunity.plus/share/unavailable';
+    final result = await channel.invokeMethod<String>('share', params) ??
+        'dev.fluttercommunity.plus/share/unavailable';
 
     return ShareResult(result, _statusFromResult(result));
   }
@@ -150,56 +76,106 @@ class MethodChannelShare extends SharePlatform {
     String? subject,
     String? text,
     Rect? sharePositionOrigin,
+    List<String>? fileNameOverrides,
   }) async {
-    final filesWithPath = await _getFiles(files);
+    assert(files.isNotEmpty);
+    assert(
+      fileNameOverrides == null || files.length == fileNameOverrides.length,
+      "fileNameOverrides list must have the same length as files list.",
+    );
+    final filesWithPath = await _getFiles(files, fileNameOverrides);
+    assert(filesWithPath.every((element) => element.path.isNotEmpty));
 
     final mimeTypes = filesWithPath
         .map((e) => e.mimeType ?? _mimeTypeForPath(e.path))
         .toList();
 
-    return shareFilesWithResult(
-      filesWithPath.map((e) => e.path).toList(),
-      mimeTypes: mimeTypes,
-      subject: subject,
-      text: text,
-      sharePositionOrigin: sharePositionOrigin,
-    );
+    final paths = filesWithPath.map((e) => e.path).toList();
+    assert(paths.length == mimeTypes.length);
+    assert(mimeTypes.every((element) => element.isNotEmpty));
+
+    final params = <String, dynamic>{
+      'paths': paths,
+      'mimeTypes': mimeTypes,
+    };
+
+    if (subject != null) params['subject'] = subject;
+    if (text != null) params['text'] = text;
+
+    if (sharePositionOrigin != null) {
+      params['originX'] = sharePositionOrigin.left;
+      params['originY'] = sharePositionOrigin.top;
+      params['originWidth'] = sharePositionOrigin.width;
+      params['originHeight'] = sharePositionOrigin.height;
+    }
+
+    final result = await channel.invokeMethod<String>('shareFiles', params) ??
+        'dev.fluttercommunity.plus/share/unavailable';
+
+    return ShareResult(result, _statusFromResult(result));
   }
 
-  /// if file doesn't contain path
-  /// then make new file in TemporaryDirectory and return with path
+  /// Ensure that a file is readable from the file system. Will create file on-demand under TemporaryDiectory and return the temporary file otherwise.
   ///
+  /// if file doesn't contain path,
+  /// then make new file in TemporaryDirectory and return with path
   /// the system will automatically delete files in this
   /// TemporaryDirectory as disk space is needed elsewhere on the device
-  Future<List<XFile>> _getFiles(List<XFile> files) async {
-    if (files.any((element) => element.path.isEmpty)) {
-      final newFiles = <XFile>[];
-
-      final String tempPath = (await getTemporaryDirectory()).path;
-
-      const uuid = Uuid();
-      for (final XFile element in files) {
-        if (element.path.isEmpty) {
-          final name = uuid.v4();
-
-          final extension =
-              extensionFromMime(element.mimeType ?? 'octet-stream');
-
-          final path = '$tempPath/$name.$extension';
-          final file = File(path);
-
-          await file.writeAsBytes(await element.readAsBytes());
-
-          newFiles.add(XFile(path));
-        } else {
-          newFiles.add(element);
-        }
-      }
-
-      return newFiles;
+  Future<XFile> _getFile(
+    XFile file, {
+    String? tempRoot,
+    String? nameOverride,
+  }) async {
+    if (file.path.isNotEmpty) {
+      return file;
     } else {
-      return files;
+      tempRoot ??= (await getTemporaryDirectory()).path;
+      // Method returns null as in v2.0.0
+      final extension =
+          // ignore: dead_null_aware_expression
+          extensionFromMime(file.mimeType ?? 'octet-stream') ?? 'bin';
+
+      //By having a UUID v4 folder wrapping the file
+      //This path generation algorithm will not only minimize the risk of name collision but also ensure that the filename
+      //is not ridiculously long such that some platforms might not show the extension but ellipses
+      //which the user needs
+      //
+      //More importantly it allows us to use real filenames when available
+      final tempSubfolderPath = "$tempRoot/${const Uuid().v4()}";
+      await Directory(tempSubfolderPath).create(recursive: true);
+
+      // True if filename exists or the filename has a valid extension
+      final filenameNotEmptyOrHasValidExt =
+          file.name.isNotEmpty || lookupMimeType(file.name) != null;
+
+      //Per Issue [#3032](https://github.com/fluttercommunity/plus_plugins/issues/3032): use overridden name when available.
+      //Per Issue [#1548](https://github.com/fluttercommunity/plus_plugins/issues/1548): attempt to use XFile.name when available
+      final filename = nameOverride ??
+          (filenameNotEmptyOrHasValidExt
+              ? file.name
+              : "${const Uuid().v1().substring(10)}.$extension");
+
+      final path = "$tempSubfolderPath/$filename";
+
+      //Write the file to FS
+      await File(path).writeAsBytes(await file.readAsBytes());
+
+      return XFile(path);
     }
+  }
+
+  /// A wrapper of [MethodChannelShare._getFile] for multiple files.
+  Future<List<XFile>> _getFiles(
+    List<XFile> files,
+    List<String>? fileNameOverrides,
+  ) async {
+    return Future.wait([
+      for (var index = 0; index < files.length; index++)
+        _getFile(
+          files[index],
+          nameOverride: fileNameOverrides?.elementAt(index),
+        )
+    ]);
   }
 
   static String _mimeTypeForPath(String path) {
