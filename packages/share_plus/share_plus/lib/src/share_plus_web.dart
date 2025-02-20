@@ -1,12 +1,16 @@
-import 'dart:html' as html;
+import 'dart:developer' as developer;
+import 'dart:js_interop';
 import 'dart:typed_data';
+import 'dart:ui';
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_web_plugins/flutter_web_plugins.dart';
+import 'package:meta/meta.dart';
 import 'package:mime/mime.dart' show lookupMimeType;
+import 'package:share_plus/share_plus.dart';
 import 'package:share_plus_platform_interface/share_plus_platform_interface.dart';
 import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 import 'package:url_launcher_web/url_launcher_web.dart';
+import 'package:web/web.dart';
 
 /// The web implementation of [SharePlatform].
 class SharePlusWebPlugin extends SharePlatform {
@@ -17,25 +21,85 @@ class SharePlusWebPlugin extends SharePlatform {
     SharePlatform.instance = SharePlusWebPlugin(UrlLauncherPlugin());
   }
 
-  final html.Navigator _navigator;
+  final Navigator _navigator;
 
   /// A constructor that allows tests to override the window object used by the plugin.
   SharePlusWebPlugin(
     this.urlLauncher, {
-    @visibleForTesting html.Navigator? debugNavigator,
-  }) : _navigator = debugNavigator ?? html.window.navigator;
+    @visibleForTesting Navigator? debugNavigator,
+  }) : _navigator = debugNavigator ?? window.navigator;
 
-  /// Share text
   @override
-  Future<void> share(
+  Future<ShareResult> shareUri(
+    Uri uri, {
+    Rect? sharePositionOrigin,
+  }) async {
+    final data = ShareData(
+      url: uri.toString(),
+    );
+
+    final bool canShare;
+    try {
+      canShare = _navigator.canShare(data);
+    } on NoSuchMethodError catch (e) {
+      developer.log(
+        'Share API is not supported in this User Agent.',
+        error: e,
+      );
+
+      throw Exception('Navigator.canShare() is unavailable');
+    }
+
+    if (!canShare) {
+      throw Exception('Navigator.canShare() is false');
+    }
+
+    try {
+      await _navigator.share(data).toDart;
+    } on DOMException catch (e) {
+      if (e.name case 'AbortError') {
+        return _resultDismissed;
+      }
+
+      developer.log(
+        'Failed to share uri',
+        error: '${e.name}: ${e.message}',
+      );
+
+      throw Exception('Navigator.share() failed: ${e.message}');
+    }
+
+    return ShareResult.unavailable;
+  }
+
+  @override
+  Future<ShareResult> share(
     String text, {
     String? subject,
     Rect? sharePositionOrigin,
   }) async {
+    final ShareData data;
+    if (subject != null && subject.isNotEmpty) {
+      data = ShareData(
+        title: subject,
+        text: text,
+      );
+    } else {
+      data = ShareData(
+        text: text,
+      );
+    }
+
+    final bool canShare;
     try {
-      await _navigator.share({'title': subject, 'text': text});
-    } on NoSuchMethodError catch (_) {
-      //Navigator is not available or the webPage is not served on https
+      canShare = _navigator.canShare(data);
+    } on NoSuchMethodError catch (e) {
+      developer.log(
+        'Share API is not supported in this User Agent.',
+        error: e,
+      );
+
+      // Navigator is not available or the webPage is not served on https
       final queryParameters = {
         if (subject != null) 'subject': subject,
         'body': text,
@@ -57,37 +121,38 @@ class SharePlusWebPlugin extends SharePlatform {
       if (!launchResult) {
         throw Exception('Failed to launch $uri');
       }
-    }
-  }
 
-  /// Share files
-  @override
-  Future<void> shareFiles(
-    List<String> paths, {
-    List<String>? mimeTypes,
-    String? subject,
-    String? text,
-    Rect? sharePositionOrigin,
-  }) {
-    final files = <XFile>[];
-    for (var i = 0; i < paths.length; i++) {
-      files.add(XFile(paths[i], mimeType: mimeTypes?[i]));
+      return ShareResult.unavailable;
     }
-    return shareXFiles(
-      files,
-      subject: subject,
-      text: text,
-      sharePositionOrigin: sharePositionOrigin,
-    );
+
+    if (!canShare) {
+      throw Exception('Navigator.canShare() is false');
+    }
+
+    try {
+      await _navigator.share(data).toDart;
+
+      // actions is success, but can't get the action name
+      return ShareResult.unavailable;
+    } on DOMException catch (e) {
+      if (e.name case 'AbortError') {
+        return _resultDismissed;
+      }
+
+      developer.log(
+        'Failed to share text',
+        error: '${e.name}: ${e.message}',
+      );
+
+      throw Exception('Navigator.share() failed: ${e.message}');
+    }
   }
 
   /// Share [XFile] objects.
   ///
   /// Remarks for the web implementation:
   /// This uses the [Web Share API](https://web.dev/web-share/) if it's
-  /// available. Otherwise, uncaught Errors will be thrown.
-  /// See [Can I Use - Web Share API](https://caniuse.com/web-share) to
-  /// understand which browsers are supported. This builds on the
+  /// available. This builds on the
   /// [`cross_file`](https://pub.dev/packages/cross_file) package.
   @override
   Future<ShareResult> shareXFiles(
@@ -95,30 +160,131 @@ class SharePlusWebPlugin extends SharePlatform {
     String? subject,
     String? text,
     Rect? sharePositionOrigin,
+    List<String>? fileNameOverrides,
   }) async {
-    // See https://developer.mozilla.org/en-US/docs/Web/API/Navigator/share
-
-    final webFiles = <html.File>[];
-    for (final xFile in files) {
-      webFiles.add(await _fromXFile(xFile));
+    assert(
+        fileNameOverrides == null || files.length == fileNameOverrides.length);
+    final webFiles = <File>[];
+    for (var index = 0; index < files.length; index++) {
+      final xFile = files[index];
+      final filename = fileNameOverrides?.elementAt(index);
+      webFiles.add(await _fromXFile(xFile, nameOverride: filename));
     }
-    await _navigator.share({
-      if (subject?.isNotEmpty ?? false) 'title': subject,
-      if (text?.isNotEmpty ?? false) 'text': text,
-      if (webFiles.isNotEmpty) 'files': webFiles,
-    });
 
-    return _resultUnavailable;
+    final ShareData data;
+    if (text != null && text.isNotEmpty) {
+      if (subject != null && subject.isNotEmpty) {
+        data = ShareData(
+          files: webFiles.toJS,
+          text: text,
+          title: subject,
+        );
+      } else {
+        data = ShareData(
+          files: webFiles.toJS,
+          text: text,
+        );
+      }
+    } else if (subject != null && subject.isNotEmpty) {
+      data = ShareData(
+        files: webFiles.toJS,
+        title: subject,
+      );
+    } else {
+      data = ShareData(
+        files: webFiles.toJS,
+      );
+    }
+
+    final bool canShare;
+    try {
+      canShare = _navigator.canShare(data);
+    } on NoSuchMethodError catch (e) {
+      developer.log(
+        'Share API is not supported in this User Agent.',
+        error: e,
+      );
+
+      return _downloadIfFallbackEnabled(
+        files,
+        fileNameOverrides,
+        'Navigator.canShare() is unavailable',
+      );
+    }
+
+    if (!canShare) {
+      return _downloadIfFallbackEnabled(
+        files,
+        fileNameOverrides,
+        'Navigator.canShare() is false',
+      );
+    }
+
+    try {
+      await _navigator.share(data).toDart;
+
+      // actions is success, but can't get the action name
+      return ShareResult.unavailable;
+    } on DOMException catch (e) {
+      final name = e.name;
+      final message = e.message;
+
+      if (name case 'AbortError') {
+        return _resultDismissed;
+      }
+
+      return _downloadIfFallbackEnabled(
+        files,
+        fileNameOverrides,
+        'Navigator.share() failed: $message',
+      );
+    }
   }
 
-  static Future<html.File> _fromXFile(XFile file) async {
+  Future<ShareResult> _downloadIfFallbackEnabled(
+    List<XFile> files,
+    List<String>? fileNameOverrides,
+    String message,
+  ) {
+    developer.log(message);
+    if (Share.downloadFallbackEnabled) {
+      return _download(files, fileNameOverrides);
+    } else {
+      throw Exception(message);
+    }
+  }
+
+  Future<ShareResult> _download(
+    List<XFile> files,
+    List<String>? fileNameOverrides,
+  ) async {
+    developer.log('Download files as fallback');
+    try {
+      for (final (index, file) in files.indexed) {
+        final bytes = await file.readAsBytes();
+
+        final anchor = document.createElement('a') as HTMLAnchorElement
+          ..href = Uri.dataFromBytes(bytes).toString()
+          ..style.display = 'none'
+          ..download = fileNameOverrides?.elementAt(index) ?? file.name;
+        document.body!.children.add(anchor);
+        anchor.click();
+        anchor.remove();
+      }
+
+      return ShareResult.unavailable;
+    } catch (error) {
+      developer.log('Failed to download files', error: error);
+      throw Exception('Failed to to download files: $error');
+    }
+  }
+
+  static Future<File> _fromXFile(XFile file, {String? nameOverride}) async {
     final bytes = await file.readAsBytes();
-    return html.File(
-      [ByteData.sublistView(bytes)],
-      file.name,
-      {
-        'type': file.mimeType ?? _mimeTypeForPath(file, bytes),
-      },
+    return File(
+      [bytes.buffer.toJS].toJS,
+      nameOverride ?? file.name,
+      FilePropertyBag()..type = file.mimeType ?? _mimeTypeForPath(file, bytes),
     );
   }
 
@@ -128,7 +294,7 @@ class SharePlusWebPlugin extends SharePlatform {
   }
 }
 
-const _resultUnavailable = ShareResult(
-  'dev.fluttercommunity.plus/share/unavailable',
-  ShareResultStatus.unavailable,
+const _resultDismissed = ShareResult(
+  '',
+  ShareResultStatus.dismissed,
 );

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import 'dart:math' as math show sqrt;
 import 'package:device_info_plus_platform_interface/model/base_device_info.dart';
 
 /// Information derived from `android.os.Build`.
@@ -24,6 +23,7 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
     required this.manufacturer,
     required this.model,
     required this.product,
+    required this.name,
     required List<String> supported32BitAbis,
     required List<String> supported64BitAbis,
     required List<String> supportedAbis,
@@ -31,8 +31,8 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
     required this.type,
     required this.isPhysicalDevice,
     required List<String> systemFeatures,
-    required this.displayMetrics,
     required this.serialNumber,
+    required this.isLowRamDevice,
   })  : supported32BitAbis = List<String>.unmodifiable(supported32BitAbis),
         supported64BitAbis = List<String>.unmodifiable(supported64BitAbis),
         supportedAbis = List<String>.unmodifiable(supportedAbis),
@@ -90,6 +90,10 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
   /// https://developer.android.com/reference/android/os/Build#PRODUCT
   final String product;
 
+  /// The name of the device.
+  /// https://developer.android.com/reference/android/provider/Settings.Global#DEVICE_NAME
+  final String name;
+
   /// An ordered list of 32 bit ABIs supported by this device.
   /// Available only on Android L (API 21) and newer
   /// https://developer.android.com/reference/android/os/Build#SUPPORTED_32_BIT_ABIS
@@ -110,7 +114,7 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
   final String tags;
 
   /// The type of build, like "user" or "eng".
-  /// https://developer.android.com/reference/android/os/Build#TIME
+  /// https://developer.android.com/reference/android/os/Build#TYPE
   final String type;
 
   /// `false` if the application is running in an emulator, `true` otherwise.
@@ -132,14 +136,14 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
   /// https://developer.android.com/reference/android/content/pm/PackageManager
   final List<String> systemFeatures;
 
-  /// Information about the current android display.
-  final AndroidDisplayMetrics displayMetrics;
-
   /// Hardware serial number of the device, if available
   ///
   /// There are special restrictions on this identifier, more info here:
   /// https://developer.android.com/reference/android/os/Build#getSerial()
   final String serialNumber;
+
+  /// `true` if the application is running on a low-RAM device, `false` otherwise.
+  final bool isLowRamDevice;
 
   /// Deserializes from the message received from [_kChannel].
   static AndroidDeviceInfo fromMap(Map<String, dynamic> map) {
@@ -159,6 +163,7 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
       manufacturer: map['manufacturer'],
       model: map['model'],
       product: map['product'],
+      name: map['name'] ?? '',
       supported32BitAbis: _fromList(map['supported32BitAbis'] ?? <String>[]),
       supported64BitAbis: _fromList(map['supported64BitAbis'] ?? <String>[]),
       supportedAbis: _fromList(map['supportedAbis'] ?? []),
@@ -166,9 +171,8 @@ class AndroidDeviceInfo extends BaseDeviceInfo {
       type: map['type'],
       isPhysicalDevice: map['isPhysicalDevice'],
       systemFeatures: _fromList(map['systemFeatures'] ?? []),
-      displayMetrics: AndroidDisplayMetrics._fromMap(
-          map['displayMetrics']?.cast<String, dynamic>() ?? {}),
       serialNumber: map['serialNumber'],
+      isLowRamDevice: map['isLowRamDevice'],
     );
   }
 
@@ -244,65 +248,6 @@ class AndroidBuildVersion {
       release: map['release'],
       sdkInt: map['sdkInt'],
       securityPatch: map['securityPatch'],
-    );
-  }
-}
-
-/// Details for the current display
-///
-/// See: https://developer.android.com/reference/android/util/DisplayMetrics
-class AndroidDisplayMetrics {
-  const AndroidDisplayMetrics._({
-    required this.widthPx,
-    required this.heightPx,
-    required this.xDpi,
-    required this.yDpi,
-  });
-
-  /// Gets the absolute width in pixels of the largest region of the display accessible to an app
-  /// in the current system state, without subtracting any window decor or applying scaling factors.
-  final double widthPx;
-
-  /// Gets the absolute height in pixels of the largest region of the display accessible to an app
-  /// in the current system state, without subtracting any window decor or applying scaling factors.
-  final double heightPx;
-
-  /// The exact physical pixels per inch of the screen in the X dimension.
-  final double xDpi;
-
-  /// The exact physical pixels per inch of the screen in the Y dimension.
-  final double yDpi;
-
-  /// The exact physical display width in inches.
-  double get widthInches => widthPx / xDpi;
-
-  /// The exact physical display height in inches.
-  double get heightInches => heightPx / yDpi;
-
-  /// The exact physical size in inches measured diagonally across the display.
-  double get sizeInches {
-    final width = widthInches;
-    final height = heightInches;
-    return math.sqrt((width * width) + (height * height));
-  }
-
-  /// Serializes [AndroidDisplayMetrics] to map.
-  Map<String, dynamic> toMap() {
-    return {
-      'widthPx': widthPx,
-      'heightPx': heightPx,
-      'xDpi': xDpi,
-      'yDpi': yDpi,
-    };
-  }
-
-  /// Deserializes from the map message received from the [MethodChannel].
-  static AndroidDisplayMetrics _fromMap(Map<String, dynamic> map) {
-    return AndroidDisplayMetrics._(
-      widthPx: map['widthPx'],
-      heightPx: map['heightPx'],
-      xDpi: map['xDpi'],
-      yDpi: map['yDpi'],
     );
   }
 }

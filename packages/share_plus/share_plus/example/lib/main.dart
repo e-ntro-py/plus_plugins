@@ -4,6 +4,7 @@
 
 // ignore_for_file: public_member_api_docs
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_selector/file_selector.dart'
@@ -18,11 +19,15 @@ import 'package:share_plus/share_plus.dart';
 import 'image_previews.dart';
 
 void main() {
+  // Set `downloadFallbackEnabled` to `false`
+  // to disable downloading files if `shareXFiles` fails on web.
+  Share.downloadFallbackEnabled = true;
+
   runApp(const DemoApp());
 }
 
 class DemoApp extends StatefulWidget {
-  const DemoApp({Key? key}) : super(key: key);
+  const DemoApp({super.key});
 
   @override
   DemoAppState createState() => DemoAppState();
@@ -32,6 +37,7 @@ class DemoAppState extends State<DemoApp> {
   String text = '';
   String subject = '';
   String uri = '';
+  String fileName = '';
   List<String> imageNames = [];
   List<String> imagePaths = [];
 
@@ -90,6 +96,18 @@ class DemoAppState extends State<DemoApp> {
                 },
               ),
               const SizedBox(height: 16),
+              TextField(
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Share Text as File',
+                  hintText: 'Enter the filename you want to share your text as',
+                ),
+                maxLines: null,
+                onChanged: (String value) {
+                  setState(() => fileName = value);
+                },
+              ),
+              const SizedBox(height: 16),
               ImagePreviews(imagePaths, onDelete: _onDeleteImage),
               ElevatedButton.icon(
                 label: const Text('Add image'),
@@ -135,25 +153,10 @@ class DemoAppState extends State<DemoApp> {
                       foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       backgroundColor: Theme.of(context).colorScheme.primary,
                     ),
-                    onPressed: text.isEmpty && imagePaths.isEmpty && uri.isEmpty
-                        ? null
-                        : () => _onShare(context),
-                    child: const Text('Share'),
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              Builder(
-                builder: (BuildContext context) {
-                  return ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                    ),
                     onPressed: text.isEmpty && imagePaths.isEmpty
                         ? null
                         : () => _onShareWithResult(context),
-                    child: const Text('Share With Result'),
+                    child: const Text('Share'),
                   );
                 },
               ),
@@ -172,6 +175,21 @@ class DemoAppState extends State<DemoApp> {
                   );
                 },
               ),
+              const SizedBox(height: 16),
+              Builder(
+                builder: (BuildContext context) {
+                  return ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                    onPressed: fileName.isEmpty || text.isEmpty
+                        ? null
+                        : () => _onShareTextAsXFile(context),
+                    child: const Text('Share text as XFile'),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -186,7 +204,7 @@ class DemoAppState extends State<DemoApp> {
     });
   }
 
-  void _onShare(BuildContext context) async {
+  void _onShareWithResult(BuildContext context) async {
     // A builder is used to retrieve the context immediately
     // surrounding the ElevatedButton.
     //
@@ -196,26 +214,6 @@ class DemoAppState extends State<DemoApp> {
     // has its position and size after it's built.
     final box = context.findRenderObject() as RenderBox?;
 
-    if (uri.isNotEmpty) {
-      await Share.shareUri(Uri.parse(uri));
-    } else if (imagePaths.isNotEmpty) {
-      final files = <XFile>[];
-      for (var i = 0; i < imagePaths.length; i++) {
-        files.add(XFile(imagePaths[i], name: imageNames[i]));
-      }
-      await Share.shareXFiles(files,
-          text: text,
-          subject: subject,
-          sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
-    } else {
-      await Share.share(text,
-          subject: subject,
-          sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
-    }
-  }
-
-  void _onShareWithResult(BuildContext context) async {
-    final box = context.findRenderObject() as RenderBox?;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     ShareResult shareResult;
     if (imagePaths.isNotEmpty) {
@@ -223,14 +221,23 @@ class DemoAppState extends State<DemoApp> {
       for (var i = 0; i < imagePaths.length; i++) {
         files.add(XFile(imagePaths[i], name: imageNames[i]));
       }
-      shareResult = await Share.shareXFiles(files,
-          text: text,
-          subject: subject,
-          sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
+      shareResult = await Share.shareXFiles(
+        files,
+        text: text,
+        subject: subject,
+        sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+      );
+    } else if (uri.isNotEmpty) {
+      shareResult = await Share.shareUri(
+        Uri.parse(uri),
+        sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+      );
     } else {
-      shareResult = await Share.shareWithResult(text,
-          subject: subject,
-          sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size);
+      shareResult = await Share.share(
+        text,
+        subject: subject,
+        sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+      );
     }
     scaffoldMessenger.showSnackBar(getResultSnackBar(shareResult));
   }
@@ -238,20 +245,50 @@ class DemoAppState extends State<DemoApp> {
   void _onShareXFileFromAssets(BuildContext context) async {
     final box = context.findRenderObject() as RenderBox?;
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final data = await rootBundle.load('assets/flutter_logo.png');
-    final buffer = data.buffer;
-    final shareResult = await Share.shareXFiles(
-      [
-        XFile.fromData(
-          buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-          name: 'flutter_logo.png',
-          mimeType: 'image/png',
-        ),
-      ],
-      sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
-    );
+    try {
+      final data = await rootBundle.load('assets/flutter_logo.png');
+      final buffer = data.buffer;
+      final shareResult = await Share.shareXFiles(
+        [
+          XFile.fromData(
+            buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+            name: 'flutter_logo.png',
+            mimeType: 'image/png',
+          ),
+        ],
+        sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+      );
+      scaffoldMessenger.showSnackBar(getResultSnackBar(shareResult));
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
 
-    scaffoldMessenger.showSnackBar(getResultSnackBar(shareResult));
+  void _onShareTextAsXFile(BuildContext context) async {
+    final box = context.findRenderObject() as RenderBox?;
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+    try {
+      final shareResult = await Share.shareXFiles(
+        [
+          XFile.fromData(
+            utf8.encode(text),
+            // name: fileName, // Notice, how setting the name here does not work.
+            mimeType: 'text/plain',
+          ),
+        ],
+        sharePositionOrigin: box!.localToGlobal(Offset.zero) & box.size,
+        fileNameOverrides: [fileName],
+      );
+
+      scaffoldMessenger.showSnackBar(getResultSnackBar(shareResult));
+    } catch (e) {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
   }
 
   SnackBar getResultSnackBar(ShareResult result) {
